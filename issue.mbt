@@ -36,7 +36,7 @@ pub fn normalize_status(value : String) -> String? {
 
 ///|
 pub fn is_ready(issue : Issue, status_by_id : Map[String, String]) -> Bool {
-  if issue.status != status_open {
+  if issue.status != status_open && issue.status != status_in_progress {
     return false
   }
   if issue.deps.length() == 0 {

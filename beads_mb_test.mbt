@@ -63,4 +63,10 @@ test "ready requires closed deps" {
   ]
   let done_map = @moonbead.build_status_map(done)
   assert_true(@moonbead.is_ready(done[1], done_map))
+  let in_progress = [
+    make_issue("mb-1", status=@moonbead.status_closed),
+    make_issue("mb-2", status=@moonbead.status_in_progress, deps=["mb-1"]),
+  ]
+  let in_progress_map = @moonbead.build_status_map(in_progress)
+  assert_true(@moonbead.is_ready(in_progress[1], in_progress_map))
 }

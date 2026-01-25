@@ -18,7 +18,7 @@ pub fn remove_dep_value(deps : Array[String], target : String) -> Array[String] 
 
 ///|
 fn build_dep_map(issues : Array[Issue]) -> Map[String, Array[String]] {
-  let map : Map[String, Array[String]] = {}
+  let map = {}
   for issue in issues {
     map[issue.id] = issue.deps
   }
