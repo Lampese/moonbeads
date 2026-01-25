@@ -1,0 +1,7 @@
+target
+_build/
+target/
+.beads/
+AGENTS.md
+.DS_Store
+.mooncakes/

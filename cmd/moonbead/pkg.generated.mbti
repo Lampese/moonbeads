@@ -1,0 +1,23 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lampese/moonbead/cmd/moonbead"
+
+// Values
+
+// Errors
+
+// Types and methods
+type ActionPayload
+pub impl ToJson for ActionPayload
+
+type CreateOptions
+
+type GlobalOptions
+
+type ListOptions
+
+type UpdateOptions
+
+// Type aliases
+
+// Traits
+

@@ -1,0 +1,79 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lampese/moonbead"
+
+import(
+  "moonbitlang/core/json"
+)
+
+// Values
+pub async fn acquire_lock(String, force? : Bool) -> Lock?
+
+pub fn build_status_map(Array[Issue]) -> Map[String, String]
+
+pub fn find_issue_index(Array[Issue], String) -> Int?
+
+pub fn is_ready(Issue, Map[String, String]) -> Bool
+
+pub fn join_path(StringView, StringView) -> String
+
+pub fn next_issue_id(Array[Issue]) -> String
+
+pub fn normalize_status(String) -> String?
+
+pub fn remove_dep_value(Array[String], String) -> Array[String]
+
+pub let status_blocked : String
+
+pub let status_closed : String
+
+pub let status_in_progress : String
+
+pub let status_open : String
+
+pub async fn[T] with_lock(String, async () -> T, force? : Bool) -> T?
+
+pub fn would_create_cycle(Array[Issue], String, String) -> Bool
+
+// Errors
+
+// Types and methods
+pub(all) struct Issue {
+  id : String
+  title : String
+  status : String
+  priority : Int
+  created_at : UInt64
+  updated_at : UInt64
+  deps : Array[String]
+  notes : String
+}
+pub impl Eq for Issue
+pub impl Show for Issue
+pub impl ToJson for Issue
+pub impl @json.FromJson for Issue
+
+pub struct Lock {
+  path : String
+}
+pub async fn Lock::release(Self) -> Unit
+
+pub struct Store {
+  beads_dir : String
+  issues_path : String
+  backup_path : String
+  tmp_path : String
+  lock_path : String
+}
+pub fn Store::backup_path(Self) -> String
+pub async fn Store::ensure_workspace(Self) -> Unit
+pub fn Store::issues_path(Self) -> String
+pub async fn Store::load_issues(Self) -> Array[Issue]
+pub fn Store::lock_path(Self) -> String
+pub fn Store::new(beads_dir? : String) -> Self
+pub async fn Store::save_issues(Self, Array[Issue]) -> Unit
+pub fn Store::tmp_path(Self) -> String
+
+// Type aliases
+
+// Traits
+

@@ -1,0 +1,12 @@
+{
+  "is-main": true,
+  "import": [
+    {
+      "path": "Lampese/moonbead",
+      "alias": "tracker"
+    },
+    "moonbitlang/async",
+    "moonbitlang/async/fs",
+    "moonbitlang/async/stdio"
+  ]
+}
