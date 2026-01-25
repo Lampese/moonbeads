@@ -2,6 +2,7 @@
 struct GlobalOptions {
   json : Bool
   force : Bool
+  color : Bool
 }
 
 ///|
@@ -202,7 +203,7 @@ async fn cmd_list(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
     }
   } else {
     for issue in filtered {
-      @stdio.stdout.write(format_issue_line(issue))
+      @stdio.stdout.write(format_issue_line(issue, opts.color))
     }
   }
 }
@@ -231,7 +232,7 @@ async fn cmd_ready(opts : GlobalOptions) -> Unit {
     }
   } else {
     for issue in ready {
-      @stdio.stdout.write(format_issue_line(issue))
+      @stdio.stdout.write(format_issue_line(issue, opts.color))
     }
   }
 }
@@ -247,10 +248,14 @@ async fn cmd_show(opts : GlobalOptions, id : String) -> Unit {
         write_issue_json(issue)
         return
       }
-      @stdio.stdout.write("id: \{issue.id}\n")
+      @stdio.stdout.write("id: \{format_id(issue.id, opts.color)}\n")
       @stdio.stdout.write("title: \{issue.title}\n")
-      @stdio.stdout.write("status: \{issue.status}\n")
-      @stdio.stdout.write("priority: \{issue.priority}\n")
+      @stdio.stdout.write(
+        "status: \{format_status(issue.status, opts.color)}\n",
+      )
+      @stdio.stdout.write(
+        "priority: \{format_priority_value(issue.priority, opts.color)}\n",
+      )
       @stdio.stdout.write("created_at: \{issue.created_at.to_string()}\n")
       @stdio.stdout.write("updated_at: \{issue.updated_at.to_string()}\n")
       let deps = if issue.deps.length() == 0 {
@@ -581,6 +586,7 @@ async fn print_usage() -> Unit {
     "  --json                 Output JSON (list/ready as JSONL)\n",
   )
   @stdio.stdout.write("  --force                Remove existing lock\n")
+  @stdio.stdout.write("  --no-color             Disable ANSI colors\n")
   @stdio.stdout.write("  -p, --priority <n>      Create/list/update\n")
   @stdio.stdout.write("  --notes <text>          Create/update\n")
   @stdio.stdout.write("  --title <text>          Update\n")
@@ -592,8 +598,88 @@ async fn print_usage() -> Unit {
 }
 
 ///|
-fn format_issue_line(issue : @tracker.Issue) -> String {
-  "\{issue.id} [\{issue.status}] p\{issue.priority} \{issue.title}\n"
+fn format_issue_line(issue : @tracker.Issue, color : Bool) -> String {
+  let id = format_id(issue.id, color)
+  let status = format_status(issue.status, color)
+  let priority = format_priority_label(issue.priority, color)
+  "\{id} [\{status}] \{priority} \{issue.title}\n"
+}
+
+///|
+let ansi_reset = "\u001b[0m"
+
+///|
+let ansi_red = "\u001b[31m"
+
+///|
+let ansi_green = "\u001b[32m"
+
+///|
+let ansi_yellow = "\u001b[33m"
+
+///|
+let ansi_cyan = "\u001b[36m"
+
+///|
+let ansi_gray = "\u001b[90m"
+
+///|
+fn colorize(value : String, color : String, enabled : Bool) -> String {
+  if enabled {
+    color + value + ansi_reset
+  } else {
+    value
+  }
+}
+
+///|
+fn status_color(status : String) -> String {
+  if status == @tracker.status_open {
+    ansi_green
+  } else if status == @tracker.status_in_progress {
+    ansi_yellow
+  } else if status == @tracker.status_blocked {
+    ansi_red
+  } else if status == @tracker.status_closed {
+    ansi_gray
+  } else {
+    ansi_cyan
+  }
+}
+
+///|
+fn format_status(status : String, enabled : Bool) -> String {
+  colorize(status, status_color(status), enabled)
+}
+
+///|
+fn priority_color(priority : Int) -> String {
+  if priority <= 1 {
+    ansi_red
+  } else if priority == 2 {
+    ansi_yellow
+  } else if priority == 3 {
+    ansi_green
+  } else {
+    ansi_cyan
+  }
+}
+
+///|
+fn format_priority_label(priority : Int, enabled : Bool) -> String {
+  let label = "p\{priority}"
+  colorize(label, priority_color(priority), enabled)
+}
+
+///|
+fn format_priority_value(priority : Int, enabled : Bool) -> String {
+  let value = "\{priority}"
+  colorize(value, priority_color(priority), enabled)
+}
+
+///|
+fn format_id(id : String, enabled : Bool) -> String {
+  colorize(id, ansi_cyan, enabled)
 }
 
 ///|
@@ -627,6 +713,7 @@ async fn write_json_action(
 fn parse_global_options(args : Array[String]) -> (GlobalOptions, Array[String]) {
   let mut json = false
   let mut force = false
+  let mut color = true
   let rest : Array[String] = []
   for i, arg in args {
     if i == 0 {
@@ -636,10 +723,11 @@ fn parse_global_options(args : Array[String]) -> (GlobalOptions, Array[String]) 
     match arg {
       "--json" => json = true
       "--force" => force = true
+      "--no-color" => color = false
       _ => rest.push(arg)
     }
   }
-  (GlobalOptions::{ json, force }, rest)
+  (GlobalOptions::{ json, force, color }, rest)
 }
 
 ///|
