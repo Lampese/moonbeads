@@ -4,11 +4,13 @@ fn make_issue(
   status? : String = @moonbead.status_open,
   deps? : Array[String] = [],
   priority? : Int = 2,
+  description? : String = "",
 ) -> @moonbead.Issue {
   let now : UInt64 = 0
   @moonbead.Issue::{
     id,
     title: id,
+    description,
     status,
     priority,
     created_at: now,
@@ -69,4 +71,12 @@ test "ready requires closed deps" {
   ]
   let in_progress_map = @moonbead.build_status_map(in_progress)
   assert_true(@moonbead.is_ready(in_progress[1], in_progress_map))
+}
+
+///|
+test "issue description roundtrip" {
+  let issue = make_issue("mb-10", description="summary")
+  let json = issue.to_json()
+  let decoded : @moonbead.Issue = @json.from_json(json)
+  assert_eq(decoded.description, "summary")
 }

@@ -23,9 +23,9 @@ let prime_prompt =
   #|
   #|Workflow:
   #|1. Pick work: moonbead ready --json
-  #|2. Create issues for new work: moonbead create "..."
+  #|2. Create issues for new work: moonbead create "..." --description "..."
   #|3. Mark in progress: moonbead status <id> in_progress
-  #|4. Update details: moonbead update <id> --notes "..." --priority 1
+  #|4. Update details: moonbead update <id> --description "..." --notes "..." --priority 1
   #|5. Link dependencies: moonbead dep add <child> <parent>
   #|6. Close when done: moonbead close <id>
   #|7. Commit .beads/issues.jsonl with code changes

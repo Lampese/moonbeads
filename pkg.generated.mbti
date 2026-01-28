@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "Lampese/moonbead"
 
-import(
-  "moonbitlang/core/json"
-)
+import {
+  "moonbitlang/core/json",
+}
 
 // Values
 pub async fn acquire_lock(String, force? : Bool) -> Lock?
@@ -40,6 +40,7 @@ pub fn would_create_cycle(Array[Issue], String, String) -> Bool
 pub(all) struct Issue {
   id : String
   title : String
+  description : String
   status : String
   priority : Int
   created_at : UInt64

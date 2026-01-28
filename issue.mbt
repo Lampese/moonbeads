@@ -14,13 +14,68 @@ pub let status_closed = "closed"
 pub(all) struct Issue {
   id : String
   title : String
+  description : String
   status : String
   priority : Int
   created_at : UInt64
   updated_at : UInt64
   deps : Array[String]
   notes : String
-} derive(ToJson, FromJson, Show, Eq)
+} derive(ToJson, Show, Eq)
+
+///|
+fn[T : @json.FromJson] get_field(
+  obj : Map[String, Json],
+  path : @json.JsonPath,
+  key : String,
+) -> T raise @json.JsonDecodeError {
+  match obj.get(key) {
+    Some(value) => @json.from_json(value, path=path.add_key(key))
+    None => raise @json.JsonDecodeError((path.add_key(key), "missing field"))
+  }
+}
+
+///|
+fn get_optional_string(
+  obj : Map[String, Json],
+  path : @json.JsonPath,
+  key : String,
+) -> String raise @json.JsonDecodeError {
+  match obj.get(key) {
+    Some(value) => @json.from_json(value, path=path.add_key(key))
+    None => ""
+  }
+}
+
+///|
+pub impl @json.FromJson for Issue with from_json(json, path) {
+  match json {
+    Object(obj) => {
+      let id : String = get_field(obj, path, "id")
+      let title : String = get_field(obj, path, "title")
+      let description : String = get_optional_string(obj, path, "description")
+      let status : String = get_field(obj, path, "status")
+      let priority : Int = get_field(obj, path, "priority")
+      let created_at : UInt64 = get_field(obj, path, "created_at")
+      let updated_at : UInt64 = get_field(obj, path, "updated_at")
+      let deps : Array[String] = get_field(obj, path, "deps")
+      let notes : String = get_field(obj, path, "notes")
+      Issue::{
+        id,
+        title,
+        description,
+        status,
+        priority,
+        created_at,
+        updated_at,
+        deps,
+        notes,
+      }
+    }
+    _ =>
+      raise @json.JsonDecodeError((path, "Issue::from_json: expected object"))
+  }
+}
 
 ///|
 pub fn normalize_status(value : String) -> String? {

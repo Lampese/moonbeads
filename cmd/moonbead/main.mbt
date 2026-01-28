@@ -18,6 +18,7 @@ struct ListOptions {
 ///|
 struct UpdateOptions {
   title : String?
+  description : String?
   notes : String?
   append_notes : String?
   priority : Int?
@@ -26,6 +27,7 @@ struct UpdateOptions {
 ///|
 struct CreateOptions {
   title : String
+  description : String
   priority : Int
   notes : String
 }
@@ -117,6 +119,7 @@ async fn cmd_create(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
       let issue = @tracker.Issue::{
         id: @tracker.next_issue_id(issues),
         title: create_opts.title,
+        description: create_opts.description,
         status: @tracker.status_open,
         priority: create_opts.priority,
         created_at: now,
@@ -251,6 +254,9 @@ async fn cmd_show(opts : GlobalOptions, id : String) -> Unit {
       }
       @stdio.stdout.write("id: \{format_id(issue.id, opts.color)}\n")
       @stdio.stdout.write("title: \{issue.title}\n")
+      if !issue.description.trim().is_empty() {
+        @stdio.stdout.write("description: \{issue.description}\n")
+      }
       @stdio.stdout.write(
         "status: \{format_status(issue.status, opts.color)}\n",
       )
@@ -299,6 +305,7 @@ async fn cmd_set_status(
           let updated = @tracker.Issue::{
             id: issue.id,
             title: issue.title,
+            description: issue.description,
             status,
             priority: issue.priority,
             created_at: issue.created_at,
@@ -341,6 +348,7 @@ async fn cmd_update(
     }
   }
   if update_opts.title is None &&
+    update_opts.description is None &&
     update_opts.notes is None &&
     update_opts.append_notes is None &&
     update_opts.priority is None {
@@ -364,6 +372,10 @@ async fn cmd_update(
           let title = match update_opts.title {
             Some(value) => value
             None => issue.title
+          }
+          let description = match update_opts.description {
+            Some(value) => value
+            None => issue.description
           }
           let notes = match update_opts.notes {
             Some(value) => value
@@ -389,6 +401,7 @@ async fn cmd_update(
           let updated = @tracker.Issue::{
             id: issue.id,
             title,
+            description,
             status: issue.status,
             priority,
             created_at: issue.created_at,
@@ -435,6 +448,7 @@ async fn cmd_delete(opts : GlobalOptions, id : String) -> Unit {
               let updated = @tracker.Issue::{
                 id: issue.id,
                 title: issue.title,
+                description: issue.description,
                 status: issue.status,
                 priority: issue.priority,
                 created_at: issue.created_at,
@@ -502,6 +516,7 @@ async fn cmd_dep_add(
       let updated = @tracker.Issue::{
         id: issue.id,
         title: issue.title,
+        description: issue.description,
         status: issue.status,
         priority: issue.priority,
         created_at: issue.created_at,
@@ -556,6 +571,7 @@ async fn cmd_dep_remove(
       let updated = @tracker.Issue::{
         id: issue.id,
         title: issue.title,
+        description: issue.description,
         status: issue.status,
         priority: issue.priority,
         created_at: issue.created_at,
@@ -607,6 +623,7 @@ async fn print_usage() -> Unit {
   @stdio.stdout.write("  --force                Remove existing lock\n")
   @stdio.stdout.write("  --no-color             Disable ANSI colors\n")
   @stdio.stdout.write("  -p, --priority <n>      Create/list/update\n")
+  @stdio.stdout.write("  --description <text>    Create/update\n")
   @stdio.stdout.write("  --notes <text>          Create/update\n")
   @stdio.stdout.write("  --append-notes <text>   Update (append)\n")
   @stdio.stdout.write("  --title <text>          Update\n")
@@ -818,6 +835,7 @@ fn parse_list_args(args : ArrayView[String]) -> Result[ListOptions, String] {
 fn parse_create_args(args : ArrayView[String]) -> Result[CreateOptions, String] {
   let mut priority = 2
   let mut notes = ""
+  let mut description = ""
   let title_parts : Array[String] = []
   for i = 0; i < args.length(); {
     let arg = args[i]
@@ -839,6 +857,13 @@ fn parse_create_args(args : ArrayView[String]) -> Result[CreateOptions, String] 
         notes = args[i + 1]
         continue i + 2
       }
+      "--description" => {
+        if i + 1 >= args.length() {
+          return Err("missing value for --description")
+        }
+        description = args[i + 1]
+        continue i + 2
+      }
       "--" =>
         for j = i + 1; j < args.length(); {
           title_parts.push(args[j])
@@ -856,13 +881,14 @@ fn parse_create_args(args : ArrayView[String]) -> Result[CreateOptions, String] 
     if title.trim().is_empty() {
       return Err("title required")
     }
-    Ok(CreateOptions::{ title, priority, notes })
+    Ok(CreateOptions::{ title, description, priority, notes })
   }
 }
 
 ///|
 fn parse_update_args(args : ArrayView[String]) -> Result[UpdateOptions, String] {
   let mut title : String? = None
+  let mut description : String? = None
   let mut notes : String? = None
   let mut append_notes : String? = None
   let mut priority : Int? = None
@@ -881,6 +907,13 @@ fn parse_update_args(args : ArrayView[String]) -> Result[UpdateOptions, String] 
           return Err("missing value for --notes")
         }
         notes = Some(args[i + 1])
+        continue i + 2
+      }
+      "--description" => {
+        if i + 1 >= args.length() {
+          return Err("missing value for --description")
+        }
+        description = Some(args[i + 1])
         continue i + 2
       }
       "--append-notes" => {
@@ -903,7 +936,7 @@ fn parse_update_args(args : ArrayView[String]) -> Result[UpdateOptions, String] 
       _ => return Err("unknown option \{arg}")
     }
   } else {
-    Ok(UpdateOptions::{ title, notes, append_notes, priority })
+    Ok(UpdateOptions::{ title, description, notes, append_notes, priority })
   }
 }
 
