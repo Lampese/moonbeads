@@ -4,10 +4,10 @@
   "deps": {
     "moonbitlang/async": "0.16.2"
   },
-  "preferred-target": "native",
   "readme": "README.md",
-  "repository": "",
+  "repository": "https://github.com/Lampese/moonbeads",
   "license": "Apache-2.0",
   "keywords": ["issue-tracker", "ai-agent", "coding-agent"],
-  "description": "Minimal single-machine issue tracker for AI agents, backed by JSONL."
+  "description": "Minimal single-machine issue tracker for AI agents, backed by JSONL.",
+  "preferred-target": "native"
 }

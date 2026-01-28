@@ -1,5 +1,8 @@
 {
   "import": [
+    "moonbitlang/core/env",
+    "moonbitlang/core/json",
+    "moonbitlang/core/strconv",
     "moonbitlang/async/fs",
     "moonbitlang/async/io",
     "moonbitlang/async/os_error"

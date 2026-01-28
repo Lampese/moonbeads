@@ -19,6 +19,7 @@ struct ListOptions {
 struct UpdateOptions {
   title : String?
   notes : String?
+  append_notes : String?
   priority : Int?
 }
 
@@ -341,8 +342,13 @@ async fn cmd_update(
   }
   if update_opts.title is None &&
     update_opts.notes is None &&
+    update_opts.append_notes is None &&
     update_opts.priority is None {
     @stdio.stderr.write("error: no fields to update\n")
+    return
+  }
+  if update_opts.notes is Some(_) && update_opts.append_notes is Some(_) {
+    @stdio.stderr.write("error: use --notes or --append-notes, not both\n")
     return
   }
   let store = @tracker.Store::new()
@@ -361,7 +367,20 @@ async fn cmd_update(
           }
           let notes = match update_opts.notes {
             Some(value) => value
-            None => issue.notes
+            None =>
+              match update_opts.append_notes {
+                Some(value) => {
+                  let trimmed = value.trim()
+                  if trimmed.is_empty() {
+                    issue.notes
+                  } else if issue.notes.trim().is_empty() {
+                    value
+                  } else {
+                    issue.notes + "\n" + value
+                  }
+                }
+                None => issue.notes
+              }
           }
           let priority = match update_opts.priority {
             Some(value) => value
@@ -589,6 +608,7 @@ async fn print_usage() -> Unit {
   @stdio.stdout.write("  --no-color             Disable ANSI colors\n")
   @stdio.stdout.write("  -p, --priority <n>      Create/list/update\n")
   @stdio.stdout.write("  --notes <text>          Create/update\n")
+  @stdio.stdout.write("  --append-notes <text>   Update (append)\n")
   @stdio.stdout.write("  --title <text>          Update\n")
   @stdio.stdout.write("  --status <status>       List\n")
   @stdio.stdout.write("  --all                   List (include closed)\n")
@@ -844,6 +864,7 @@ fn parse_create_args(args : ArrayView[String]) -> Result[CreateOptions, String] 
 fn parse_update_args(args : ArrayView[String]) -> Result[UpdateOptions, String] {
   let mut title : String? = None
   let mut notes : String? = None
+  let mut append_notes : String? = None
   let mut priority : Int? = None
   for i = 0; i < args.length(); {
     let arg = args[i]
@@ -862,6 +883,13 @@ fn parse_update_args(args : ArrayView[String]) -> Result[UpdateOptions, String] 
         notes = Some(args[i + 1])
         continue i + 2
       }
+      "--append-notes" => {
+        if i + 1 >= args.length() {
+          return Err("missing value for --append-notes")
+        }
+        append_notes = Some(args[i + 1])
+        continue i + 2
+      }
       "--priority" | "-p" => {
         if i + 1 >= args.length() {
           return Err("missing value for --priority")
@@ -875,7 +903,7 @@ fn parse_update_args(args : ArrayView[String]) -> Result[UpdateOptions, String] 
       _ => return Err("unknown option \{arg}")
     }
   } else {
-    Ok(UpdateOptions::{ title, notes, priority })
+    Ok(UpdateOptions::{ title, notes, append_notes, priority })
   }
 }
 

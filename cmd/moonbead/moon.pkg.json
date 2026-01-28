@@ -5,8 +5,11 @@
       "path": "Lampese/moonbead",
       "alias": "tracker"
     },
+    "moonbitlang/core/env",
+    "moonbitlang/core/strconv",
     "moonbitlang/async",
     "moonbitlang/async/fs",
+    "moonbitlang/async/io",
     "moonbitlang/async/stdio"
   ]
 }
