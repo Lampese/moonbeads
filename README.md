@@ -11,6 +11,15 @@ Minimal single-machine issue tracker for AI agents, backed by JSONL.
 Requires MoonBit CLI (moon). Installs `moonbead` to `/opt/homebrew/bin`,
 `/usr/local/bin`, or `~/.local/bin` depending on what is writable.
 
+## Install (Linux)
+
+```bash
+./scripts/install-linux.sh
+```
+
+Requires MoonBit CLI (moon). Installs `moonbead` to `/usr/local/bin` or
+`~/.local/bin` depending on what is writable.
+
 ## Initialize
 
 ```bash
