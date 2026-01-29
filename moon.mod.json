@@ -1,8 +1,8 @@
 {
   "name": "Lampese/moonbead",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "deps": {
-    "moonbitlang/async": "0.16.2"
+    "moonbitlang/async": "0.16.4"
   },
   "readme": "README.md",
   "repository": "https://github.com/Lampese/moonbeads",
