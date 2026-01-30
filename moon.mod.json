@@ -1,6 +1,6 @@
 {
   "name": "Lampese/moonbead",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "deps": {
     "moonbitlang/async": "0.16.4"
   },

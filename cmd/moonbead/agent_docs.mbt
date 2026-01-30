@@ -38,6 +38,7 @@ let prime_prompt =
   #|Notes:
   #|- list hides closed by default; add --all to include them.
   #|- If lock is stale, retry with --force.
+  #|- Do not read or edit .beads directly; use moonbead for all operations.
   #|- When you say "Next steps" to user, you should create issues for these next steps, and follow bd workflow to continue.
   #|- When creating issue, write a detailed handoff in description so you may start work on it with zero context.
   #|- When there's no ready tasks, you should carefully review the open epic issues. Don't close epic issue without reviewing. After review you decide if need update plan. If update needed, re-plan it use moonbead workflow.
