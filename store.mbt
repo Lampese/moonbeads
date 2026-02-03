@@ -2,6 +2,9 @@
 let id_prefix = "mi-"
 
 ///|
+let id_hash_len : Int = 6
+
+///|
 pub struct Store {
   beads_dir : String
   issues_path : String
@@ -116,20 +119,45 @@ pub fn next_issue_id(
   description : String,
   created_at : UInt64,
 ) -> String {
+  let fallback = "0".repeat(id_hash_len)
   for nonce = 0 {
     let payload = "\{title}\n\{description}\n\{created_at.to_string()}\n\{nonce}"
     let bytes = @utf8.encode(payload)
     let digest = @crypto.sha256(bytes)
-    let short_bytes = FixedArray::makei(4, i => digest[i])
-    let short = @crypto.bytes_to_hex_string(short_bytes)
+    let short = base36_from_digest(digest, id_hash_len)
     let id = "\{id_prefix}\{short}"
     if !issues.any(issue => issue.id == id) {
       return id
     }
     continue nonce + 1
   } else {
-    "\{id_prefix}00000000"
+    id_prefix + fallback
   }
+}
+
+///|
+fn base36_from_digest(digest : FixedArray[Byte], length : Int) -> String {
+  let value = (digest[0].to_uint64() << 24) +
+    (digest[1].to_uint64() << 16) +
+    (digest[2].to_uint64() << 8) +
+    digest[3].to_uint64()
+  let modulus = pow_uint64(36UL, length)
+  let trimmed = if modulus == 0UL { value } else { value % modulus }
+  let raw = trimmed.to_string(radix=36)
+  if raw.length() >= length {
+    raw
+  } else {
+    "0".repeat(length - raw.length()) + raw
+  }
+}
+
+///|
+fn pow_uint64(base : UInt64, exp : Int) -> UInt64 {
+  let mut result = 1UL
+  for _ in 0..<exp {
+    result = result * base
+  }
+  result
 }
 
 ///|

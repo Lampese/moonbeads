@@ -35,7 +35,7 @@ let prime_prompt =
   #|# moonissues prime
   #|
   #|Moonissues is a local issue tracker for AI-assisted work.
-  #|IDs: mi-1a2b3c4d
+  #|IDs: mi-1a2b3c
   #|
   #|Workflow:
   #|1. Pick work: moonissues ready --json

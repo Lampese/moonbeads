@@ -38,7 +38,7 @@ test "normalize status variants" {
 test "next issue id increments" {
   let base = @moonissues.next_issue_id([], "title", "desc", 123)
   assert_true(base.strip_prefix("mi-") is Some(_))
-  assert_eq(base.length(), 11)
+  assert_eq(base.length(), 9)
   let issues = [make_issue(base)]
   let next = @moonissues.next_issue_id(issues, "title", "desc", 123)
   assert_true(next != base)
