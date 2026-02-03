@@ -15,6 +15,22 @@ let onboard_file =
   #|
 
 ///|
+let legacy_onboard_section =
+  #|## Moonbead
+  #|
+  #|This project uses moonbead for issue tracking.
+  #|Run `moonbead prime` for workflow context.
+  #|
+
+///|
+let legacy_onboard_file =
+  #|# AGENTS.md
+  #|
+  #|This project uses moonbead for issue tracking.
+  #|Run `moonbead prime` for workflow context.
+  #|
+
+///|
 let prime_prompt =
   #|# moonissues prime
   #|
@@ -45,6 +61,22 @@ let prime_prompt =
   #|
 
 ///|
+fn replace_legacy_onboard(content : String) -> String? {
+  if content.contains(legacy_onboard_section) {
+    return Some(
+      content.replace_all(old=legacy_onboard_section, new=onboard_section),
+    )
+  }
+  if content.contains(legacy_onboard_file) {
+    return Some(content.replace_all(old=legacy_onboard_file, new=onboard_file))
+  }
+  if content.trim() == legacy_onboard_file.trim() {
+    return Some(onboard_file)
+  }
+  None
+}
+
+///|
 async fn cmd_onboard(_opts : GlobalOptions) -> Unit {
   @stdio.stdout.write(onboard_section)
 }
@@ -59,6 +91,13 @@ async fn ensure_agents_doc() -> String? {
   let path = "AGENTS.md"
   if @fs.exists(path) {
     let content = @fs.read_file(path).text()
+    match replace_legacy_onboard(content) {
+      Some(updated) => {
+        @fs.write_file(path, updated, create=0o644, truncate=true)
+        return Some("updated AGENTS.md")
+      }
+      None => ()
+    }
     if content.contains("moonissues") || content.contains("moonissues prime") {
       return None
     }

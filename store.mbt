@@ -11,7 +11,7 @@ pub struct Store {
 }
 
 ///|
-pub fn Store::new(beads_dir? : String = ".beads") -> Store {
+pub fn Store::new(beads_dir? : String = ".issues") -> Store {
   let issues_path = join_path(beads_dir, "issues.jsonl")
   let backup_path = join_path(beads_dir, "issues.jsonl.bak")
   let tmp_path = join_path(beads_dir, "issues.jsonl.tmp")

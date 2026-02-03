@@ -33,6 +33,12 @@ struct CreateOptions {
 }
 
 ///|
+struct ServeOptions {
+  host : String
+  port : Int
+}
+
+///|
 struct ActionPayload {
   action : String
   id : String?
@@ -54,12 +60,22 @@ async fn run(args : Array[String]) -> Unit {
     print_command_help(rest)
     return
   }
+  if rest.length() > 1 {
+    match maybe_migrate_legacy_store() {
+      Ok(migrated) => if migrated { ignore(ensure_agents_doc()) } else { () }
+      Err(msg) => {
+        @stdio.stderr.write("error: \{msg}\n")
+        return
+      }
+    }
+  }
   match rest {
     [_] => print_usage()
     [_, "init"] => cmd_init(opts)
     [_, "create", .. title_parts] => cmd_create(opts, title_parts)
     [_, "list", .. list_args] => cmd_list(opts, list_args)
     [_, "ready"] => cmd_ready(opts)
+    [_, "serve", .. serve_args] => cmd_serve(opts, serve_args)
     [_, "onboard"] => cmd_onboard(opts)
     [_, "prime"] => cmd_prime(opts)
     [_, "show", id] => cmd_show(opts, id)
@@ -93,6 +109,7 @@ async fn print_command_help(args : Array[String]) -> Unit {
     [_, "create", ..] => print_create_usage()
     [_, "list", ..] => print_list_usage()
     [_, "ready", ..] => print_ready_usage()
+    [_, "serve", ..] => print_serve_usage()
     [_, "show", ..] => print_show_usage()
     [_, "update", ..] => print_update_usage()
     [_, "delete", ..] => print_delete_usage()
@@ -285,6 +302,35 @@ async fn cmd_ready(opts : GlobalOptions) -> Unit {
       @stdio.stdout.write(format_issue_line(issue, opts.color))
     }
   }
+}
+
+///|
+async fn cmd_serve(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
+  let serve_opts = match parse_serve_args(args) {
+    Ok(opts) => opts
+    Err(msg) => {
+      @stdio.stderr.write("error: \{msg}\n")
+      return
+    }
+  }
+  let addr = @socket.Addr::resolve(serve_opts.host, port=serve_opts.port) catch {
+    err => {
+      @stdio.stderr.write("error: \{err}\n")
+      return
+    }
+  }
+  let server = @http.Server::new(addr) catch {
+    err => {
+      @stdio.stderr.write("error: \{err}\n")
+      return
+    }
+  }
+  if !opts.json {
+    @stdio.stdout.write(
+      "serving http://\{serve_opts.host}:\{serve_opts.port}\n",
+    )
+  }
+  server.run_forever(serve_request)
 }
 
 ///|
@@ -648,12 +694,13 @@ async fn print_usage() -> Unit {
   @stdio.stdout.write("Usage:\n")
   @stdio.stdout.write("  moonissues <command> [flags]\n\n")
   @stdio.stdout.write("Available Commands:\n")
-  @stdio.stdout.write("  init        Initialize .beads + AGENTS.md\n")
+  @stdio.stdout.write("  init        Initialize .issues + AGENTS.md\n")
   @stdio.stdout.write("  onboard     Print AGENTS.md snippet\n")
   @stdio.stdout.write("  prime       Print agent workflow prompt\n")
   @stdio.stdout.write("  create <title...>   Create issue\n")
   @stdio.stdout.write("  list                List issues\n")
   @stdio.stdout.write("  ready               List ready issues\n")
+  @stdio.stdout.write("  serve               Start local web viewer\n")
   @stdio.stdout.write("  show <id>           Show issue details\n")
   @stdio.stdout.write("  update <id>         Update title/notes/priority\n")
   @stdio.stdout.write("  delete <id>         Delete issue\n")
@@ -687,7 +734,7 @@ async fn print_init_usage() -> Unit {
   @stdio.stdout.write("Usage:\n")
   @stdio.stdout.write("  moonissues init [flags]\n\n")
   @stdio.stdout.write("Description:\n")
-  @stdio.stdout.write("  Initialize .beads and AGENTS.md\n\n")
+  @stdio.stdout.write("  Initialize .issues and AGENTS.md\n\n")
   @stdio.stdout.write("Flags:\n")
   @stdio.stdout.write("  --json     Output JSON\n")
   @stdio.stdout.write("  --force    Remove existing lock\n")
@@ -743,6 +790,19 @@ async fn print_ready_usage() -> Unit {
   @stdio.stdout.write("Flags:\n")
   @stdio.stdout.write("  --json       Output JSONL\n")
   @stdio.stdout.write("  --no-color   Disable ANSI colors\n")
+}
+
+///|
+async fn print_serve_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues serve [flags]\n\n")
+  @stdio.stdout.write("Description:\n")
+  @stdio.stdout.write("  Start a local web page to view issues\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write(
+    "  --host <addr>        Bind address (default 127.0.0.1)\n",
+  )
+  @stdio.stdout.write("  --port <n>           Bind port (default 7385)\n")
 }
 
 ///|
@@ -1023,6 +1083,42 @@ fn parse_list_args(args : ArrayView[String]) -> Result[ListOptions, String] {
 }
 
 ///|
+fn parse_serve_args(args : ArrayView[String]) -> Result[ServeOptions, String] {
+  let mut host = "127.0.0.1"
+  let mut port = 7385
+  for i = 0; i < args.length(); {
+    let arg = args[i]
+    match arg {
+      "--host" => {
+        if i + 1 >= args.length() {
+          return Err("missing value for --host")
+        }
+        host = args[i + 1]
+        continue i + 2
+      }
+      "--port" => {
+        if i + 1 >= args.length() {
+          return Err("missing value for --port")
+        }
+        match parse_priority(args[i + 1]) {
+          Some(value) =>
+            if value <= 0 || value > 65535 {
+              return Err("invalid port")
+            } else {
+              port = value
+            }
+          None => return Err("invalid port")
+        }
+        continue i + 2
+      }
+      _ => return Err("unknown option \{arg}")
+    }
+  } else {
+    Ok(ServeOptions::{ host, port })
+  }
+}
+
+///|
 fn parse_create_args(args : ArrayView[String]) -> Result[CreateOptions, String] {
   let mut priority = 2
   let mut notes = ""
@@ -1153,6 +1249,131 @@ fn compare_priority_then_id(a : Issue, b : Issue) -> Int {
   } else {
     0
   }
+}
+
+///|
+async fn serve_request(
+  req : @http.Request,
+  _body : &@io.Reader,
+  conn : @http.ServerConnection,
+) -> Unit {
+  match req.meth {
+    @http.RequestMethod::Get => ()
+    _ => {
+      let headers : Map[String, String] = {
+        "Content-Type": "text/plain; charset=utf-8",
+      }
+      conn.send_response(405, "Method Not Allowed", extra_headers=headers)
+      let body = "Method Not Allowed"
+      conn.write(body)
+      conn.end_response()
+      return
+    }
+  }
+  match req.path {
+    "/" | "/index.html" => {
+      let store = Store::new()
+      let issues = store.load_issues()
+      let html = render_issues_page(issues)
+      let headers : Map[String, String] = {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+      }
+      conn.send_response(200, "OK", extra_headers=headers)
+      conn.write(html)
+      conn.end_response()
+    }
+    _ => {
+      let headers : Map[String, String] = {
+        "Content-Type": "text/plain; charset=utf-8",
+      }
+      conn.send_response(404, "Not Found", extra_headers=headers)
+      let body = "Not Found"
+      conn.write(body)
+      conn.end_response()
+    }
+  }
+}
+
+///|
+fn render_issues_page(issues : Array[Issue]) -> String {
+  let sorted = issues.copy()
+  sorted.sort_by(compare_created_desc)
+  let sb = StringBuilder::new()
+  sb.write_string("<!doctype html>\n<html><head>")
+  sb.write_string("<meta charset=\"utf-8\">")
+  sb.write_string(
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
+  )
+  sb.write_string("<title>moonissues</title>")
+  sb.write_string(
+    "<style>body{font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;margin:24px;background:#0b0e14;color:#e6edf3;}h1{font-size:20px;margin:0 0 16px;}table{width:100%;border-collapse:collapse;background:#111827;border:1px solid #1f2937;border-radius:8px;overflow:hidden;}th,td{padding:10px 12px;border-bottom:1px solid #1f2937;text-align:left;vertical-align:top;}th{font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em;background:#0f172a;}tr:last-child td{border-bottom:none;}code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}span.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;}span.open{background:#064e3b;color:#a7f3d0;}span.inprogress{background:#78350f;color:#fde68a;}span.blocked{background:#7f1d1d;color:#fecaca;}span.closed{background:#374151;color:#e5e7eb;}span.unknown{background:#0f172a;color:#cbd5f5;}div.meta{font-size:12px;color:#9ca3af;}div.desc{white-space:pre-wrap;color:#d1d5db;margin-top:4px;}</style>",
+  )
+  sb.write_string("</head><body>")
+  sb.write_string("<h1>moonissues</h1>")
+  if sorted.length() == 0 {
+    sb.write_string("<p>No issues.</p>")
+    sb.write_string("</body></html>")
+    return sb.to_string()
+  }
+  sb.write_string(
+    "<table><thead><tr><th>ID</th><th>Status</th><th>Priority</th><th>Title</th></tr></thead><tbody>",
+  )
+  for issue in sorted {
+    let status_class = status_class_name(issue.status)
+    sb.write_string("<tr>")
+    sb.write_string("<td><code>\{escape_html(issue.id)}</code></td>")
+    sb.write_string(
+      "<td><span class=\"badge \{status_class}\">\{escape_html(issue.status)}</span></td>",
+    )
+    sb.write_string("<td>\{issue.priority.to_string()}</td>")
+    sb.write_string("<td>")
+    sb.write_string("\{escape_html(issue.title)}")
+    if !issue.description.trim().is_empty() {
+      sb.write_string(
+        "<div class=\"desc\">\{escape_html(issue.description)}</div>",
+      )
+    }
+    if !issue.notes.trim().is_empty() {
+      sb.write_string("<div class=\"desc\">\{escape_html(issue.notes)}</div>")
+    }
+    sb.write_string("</td>")
+    sb.write_string("</tr>")
+  }
+  sb.write_string("</tbody></table>")
+  sb.write_string("</body></html>")
+  sb.to_string()
+}
+
+///|
+fn status_class_name(status : String) -> String {
+  if status == status_open {
+    "open"
+  } else if status == status_in_progress {
+    "inprogress"
+  } else if status == status_blocked {
+    "blocked"
+  } else if status == status_closed {
+    "closed"
+  } else {
+    "unknown"
+  }
+}
+
+///|
+fn escape_html(value : String) -> String {
+  let sb = StringBuilder::new()
+  for ch in value {
+    match ch {
+      '&' => sb.write_string("&amp;")
+      '<' => sb.write_string("&lt;")
+      '>' => sb.write_string("&gt;")
+      '"' => sb.write_string("&quot;")
+      '\'' => sb.write_string("&#39;")
+      _ => sb.write_char(ch)
+    }
+  }
+  sb.to_string()
 }
 
 ///|

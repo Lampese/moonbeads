@@ -2,6 +2,7 @@ target
 _build/
 target/
 .beads/
+.issues/
 AGENTS.md
 .DS_Store
 .mooncakes/

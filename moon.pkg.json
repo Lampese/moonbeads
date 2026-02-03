@@ -7,7 +7,9 @@
     "moonbitlang/core/json",
     "moonbitlang/core/strconv",
     "moonbitlang/async/fs",
+    "moonbitlang/async/http",
     "moonbitlang/async/io",
+    "moonbitlang/async/socket",
     "moonbitlang/async/stdio",
     "moonbitlang/async/os_error",
     "moonbitlang/x/crypto"

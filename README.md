@@ -16,5 +16,5 @@ Requires MoonBit CLI (moon). Adjust the install path as needed.
 moonissues init
 ```
 
-Creates `.beads/issues.jsonl` and adds a Moonissues section to `AGENTS.md`
+Creates `.issues/issues.jsonl` and adds a Moonissues section to `AGENTS.md`
 if missing.

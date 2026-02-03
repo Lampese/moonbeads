@@ -67,6 +67,8 @@ pub struct Lock {
 }
 pub async fn Lock::release(Self) -> Unit
 
+type ServeOptions
+
 pub struct Store {
   beads_dir : String
   issues_path : String
