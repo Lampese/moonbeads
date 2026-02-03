@@ -1,30 +1,20 @@
-# moonbead
+# moonissues
 
 Minimal single-machine issue tracker for AI agents, backed by JSONL.
 
-## Install (macOS)
+## Install
 
 ```bash
-./scripts/install-macos.sh
+moon install Lampese/moonissues
 ```
 
-Requires MoonBit CLI (moon). Installs `moonbead` to `/opt/homebrew/bin`,
-`/usr/local/bin`, or `~/.local/bin` depending on what is writable.
-
-## Install (Linux)
-
-```bash
-./scripts/install-linux.sh
-```
-
-Requires MoonBit CLI (moon). Installs `moonbead` to `/usr/local/bin` or
-`~/.local/bin` depending on what is writable.
+Requires MoonBit CLI (moon). Adjust the install path as needed.
 
 ## Initialize
 
 ```bash
-moonbead init
+moonissues init
 ```
 
-Creates `.beads/issues.jsonl` and adds a Moonbead section to `AGENTS.md`
+Creates `.beads/issues.jsonl` and adds a Moonissues section to `AGENTS.md`
 if missing.

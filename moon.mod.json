@@ -1,13 +1,18 @@
 {
-  "name": "Lampese/moonbead",
+  "name": "Lampese/moonissues",
   "version": "0.1.3",
   "deps": {
-    "moonbitlang/async": "0.16.4"
+    "moonbitlang/async": "0.16.4",
+    "moonbitlang/x": "0.4.40"
   },
   "readme": "README.md",
-  "repository": "https://github.com/Lampese/moonbeads",
+  "repository": "https://github.com/Lampese/moonissues",
   "license": "Apache-2.0",
-  "keywords": ["issue-tracker", "ai-agent", "coding-agent"],
+  "keywords": [
+    "issue-tracker",
+    "ai-agent",
+    "coding-agent"
+  ],
   "description": "Minimal single-machine issue tracker for AI agents, backed by JSONL.",
   "preferred-target": "native"
 }

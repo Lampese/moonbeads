@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "Lampese/moonbead"
+package "Lampese/moonissues"
 
 import {
   "moonbitlang/core/json",
@@ -16,7 +16,7 @@ pub fn is_ready(Issue, Map[String, String]) -> Bool
 
 pub fn join_path(StringView, StringView) -> String
 
-pub fn next_issue_id(Array[Issue]) -> String
+pub fn next_issue_id(Array[Issue], String, String, UInt64) -> String
 
 pub fn normalize_status(String) -> String?
 
@@ -37,6 +37,13 @@ pub fn would_create_cycle(Array[Issue], String, String) -> Bool
 // Errors
 
 // Types and methods
+type ActionPayload
+pub impl ToJson for ActionPayload
+
+type CreateOptions
+
+type GlobalOptions
+
 pub(all) struct Issue {
   id : String
   title : String
@@ -52,6 +59,8 @@ pub impl Eq for Issue
 pub impl Show for Issue
 pub impl ToJson for Issue
 pub impl @json.FromJson for Issue
+
+type ListOptions
 
 pub struct Lock {
   path : String
@@ -73,6 +82,8 @@ pub fn Store::lock_path(Self) -> String
 pub fn Store::new(beads_dir? : String) -> Self
 pub async fn Store::save_issues(Self, Array[Issue]) -> Unit
 pub fn Store::tmp_path(Self) -> String
+
+type UpdateOptions
 
 // Type aliases
 

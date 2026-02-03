@@ -1,8 +1,5 @@
 ///|
-let id_prefix = "mb-"
-
-///|
-let legacy_prefix = "bd-"
+let id_prefix = "mi-"
 
 ///|
 pub struct Store {
@@ -113,36 +110,25 @@ async fn load_issues_from_path(path : String) -> Array[Issue] {
 }
 
 ///|
-pub fn next_issue_id(issues : Array[Issue]) -> String {
-  let mut max_id = 0
-  for issue in issues {
-    match parse_issue_number(issue.id) {
-      Some(num) => if num > max_id { max_id = num }
-      None => ()
+pub fn next_issue_id(
+  issues : Array[Issue],
+  title : String,
+  description : String,
+  created_at : UInt64,
+) -> String {
+  for nonce = 0 {
+    let payload = "\{title}\n\{description}\n\{created_at.to_string()}\n\{nonce}"
+    let bytes = @utf8.encode(payload)
+    let digest = @crypto.sha256(bytes)
+    let short_bytes = FixedArray::makei(4, i => digest[i])
+    let short = @crypto.bytes_to_hex_string(short_bytes)
+    let id = "\{id_prefix}\{short}"
+    if !issues.any(issue => issue.id == id) {
+      return id
     }
-  }
-  "\{id_prefix}\{max_id + 1}"
-}
-
-///|
-fn parse_issue_number(id : String) -> Int? {
-  match id.strip_prefix(id_prefix) {
-    Some(rest) =>
-      try @strconv.parse_int(rest, base=10) catch {
-        _ => None
-      } noraise {
-        num => Some(num)
-      }
-    None =>
-      match id.strip_prefix(legacy_prefix) {
-        Some(rest) =>
-          try @strconv.parse_int(rest, base=10) catch {
-            _ => None
-          } noraise {
-            num => Some(num)
-          }
-        None => None
-      }
+    continue nonce + 1
+  } else {
+    "\{id_prefix}00000000"
   }
 }
 

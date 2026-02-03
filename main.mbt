@@ -50,8 +50,12 @@ async fn main {
 ///|
 async fn run(args : Array[String]) -> Unit {
   let (opts, rest) = parse_global_options(args)
+  if wants_help(rest) {
+    print_command_help(rest)
+    return
+  }
   match rest {
-    [_] | [_, "--help"] | [_, "-h"] => print_usage()
+    [_] => print_usage()
     [_, "init"] => cmd_init(opts)
     [_, "create", .. title_parts] => cmd_create(opts, title_parts)
     [_, "list", .. list_args] => cmd_list(opts, list_args)
@@ -59,7 +63,7 @@ async fn run(args : Array[String]) -> Unit {
     [_, "onboard"] => cmd_onboard(opts)
     [_, "prime"] => cmd_prime(opts)
     [_, "show", id] => cmd_show(opts, id)
-    [_, "close", id] => cmd_set_status(opts, id, @tracker.status_closed)
+    [_, "close", id] => cmd_set_status(opts, id, status_closed)
     [_, "status", id, status] => cmd_set_status(opts, id, status)
     [_, "update", id, .. update_args] => cmd_update(opts, id, update_args)
     [_, "delete", id] => cmd_delete(opts, id)
@@ -70,12 +74,44 @@ async fn run(args : Array[String]) -> Unit {
 }
 
 ///|
+fn wants_help(args : Array[String]) -> Bool {
+  for arg in args {
+    if arg == "--help" || arg == "-h" {
+      return true
+    }
+  }
+  false
+}
+
+///|
+async fn print_command_help(args : Array[String]) -> Unit {
+  match args {
+    [_] | [_, "--help"] | [_, "-h"] => print_usage()
+    [_, "init", ..] => print_init_usage()
+    [_, "onboard", ..] => print_onboard_usage()
+    [_, "prime", ..] => print_prime_usage()
+    [_, "create", ..] => print_create_usage()
+    [_, "list", ..] => print_list_usage()
+    [_, "ready", ..] => print_ready_usage()
+    [_, "show", ..] => print_show_usage()
+    [_, "update", ..] => print_update_usage()
+    [_, "delete", ..] => print_delete_usage()
+    [_, "close", ..] => print_close_usage()
+    [_, "status", ..] => print_status_usage()
+    [_, "dep", "add", ..] => print_dep_add_usage()
+    [_, "dep", "remove", ..] => print_dep_remove_usage()
+    [_, "dep", ..] => print_dep_usage()
+    _ => print_usage()
+  }
+}
+
+///|
 async fn cmd_init(opts : GlobalOptions) -> Unit {
-  let store = @tracker.Store::new()
+  let store = Store::new()
   store.ensure_workspace()
-  let result = @tracker.with_lock(
+  let result = with_lock(
     store.lock_path(),
-    fn() {
+    () => {
       if !@fs.exists(store.issues_path()) {
         store.save_issues([])
       }
@@ -109,18 +145,23 @@ async fn cmd_create(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
       return
     }
   }
-  let store = @tracker.Store::new()
+  let store = Store::new()
   store.ensure_workspace()
-  let result = @tracker.with_lock(
+  let result = with_lock(
     store.lock_path(),
-    fn() {
+    () => {
       let issues = store.load_issues()
       let now = @env.now()
-      let issue = @tracker.Issue::{
-        id: @tracker.next_issue_id(issues),
+      let issue = Issue::{
+        id: next_issue_id(
+          issues,
+          create_opts.title,
+          create_opts.description,
+          now,
+        ),
         title: create_opts.title,
         description: create_opts.description,
-        status: @tracker.status_open,
+        status: status_open,
         priority: create_opts.priority,
         created_at: now,
         updated_at: now,
@@ -146,7 +187,7 @@ async fn cmd_create(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
 
 ///|
 async fn cmd_list(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
-  let store = @tracker.Store::new()
+  let store = Store::new()
   let issues = store.load_issues()
   let list_opts = match parse_list_args(args) {
     Ok(opts) => opts
@@ -171,8 +212,7 @@ async fn cmd_list(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
     Some(status) => filtered = filtered.filter(issue => issue.status == status)
     None =>
       if !list_opts.all {
-        filtered = filtered.filter(issue => issue.status !=
-          @tracker.status_closed)
+        filtered = filtered.filter(issue => issue.status != status_closed)
       }
   }
   match list_opts.priority {
@@ -192,14 +232,19 @@ async fn cmd_list(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
     None => ()
   }
   if list_opts.ready_only {
-    let status_map = @tracker.build_status_map(issues)
-    filtered = filtered.filter(issue => @tracker.is_ready(issue, status_map))
+    let status_map = build_status_map(issues)
+    filtered = filtered.filter(issue => is_ready(issue, status_map))
   }
   if filtered.length() == 0 {
     if !opts.json {
       @stdio.stdout.write("no matching issues\n")
     }
     return
+  }
+  if !list_opts.sort_priority {
+    let sorted = filtered.copy()
+    sorted.sort_by(compare_created_desc)
+    filtered = sorted
   }
   if opts.json {
     for issue in filtered {
@@ -214,7 +259,7 @@ async fn cmd_list(opts : GlobalOptions, args : ArrayView[String]) -> Unit {
 
 ///|
 async fn cmd_ready(opts : GlobalOptions) -> Unit {
-  let store = @tracker.Store::new()
+  let store = Store::new()
   let issues = store.load_issues()
   if issues.length() == 0 {
     if !opts.json {
@@ -222,8 +267,9 @@ async fn cmd_ready(opts : GlobalOptions) -> Unit {
     }
     return
   }
-  let status_map = @tracker.build_status_map(issues)
-  let ready = issues.filter(issue => @tracker.is_ready(issue, status_map))
+  let status_map = build_status_map(issues)
+  let ready = issues.filter(issue => is_ready(issue, status_map))
+  ready.sort_by(compare_created_desc)
   if ready.length() == 0 {
     if !opts.json {
       @stdio.stdout.write("no ready issues\n")
@@ -243,9 +289,9 @@ async fn cmd_ready(opts : GlobalOptions) -> Unit {
 
 ///|
 async fn cmd_show(opts : GlobalOptions, id : String) -> Unit {
-  let store = @tracker.Store::new()
+  let store = Store::new()
   let issues = store.load_issues()
-  match @tracker.find_issue_index(issues, id) {
+  match find_issue_index(issues, id) {
     Some(index) => {
       let issue = issues[index]
       if opts.json {
@@ -285,24 +331,24 @@ async fn cmd_set_status(
   id : String,
   status_input : String,
 ) -> Unit {
-  let status = match @tracker.normalize_status(status_input) {
+  let status = match normalize_status(status_input) {
     Some(value) => value
     None => {
       @stdio.stderr.write("error: invalid status\n")
       return
     }
   }
-  let store = @tracker.Store::new()
+  let store = Store::new()
   store.ensure_workspace()
-  let result = @tracker.with_lock(
+  let result = with_lock(
     store.lock_path(),
-    fn() {
+    () => {
       let issues = store.load_issues()
-      match @tracker.find_issue_index(issues, id) {
+      match find_issue_index(issues, id) {
         Some(index) => {
           let issue = issues[index]
           let now = @env.now()
-          let updated = @tracker.Issue::{
+          let updated = Issue::{
             id: issue.id,
             title: issue.title,
             description: issue.description,
@@ -359,13 +405,13 @@ async fn cmd_update(
     @stdio.stderr.write("error: use --notes or --append-notes, not both\n")
     return
   }
-  let store = @tracker.Store::new()
+  let store = Store::new()
   store.ensure_workspace()
-  let result = @tracker.with_lock(
+  let result = with_lock(
     store.lock_path(),
-    fn() {
+    () => {
       let issues = store.load_issues()
-      match @tracker.find_issue_index(issues, id) {
+      match find_issue_index(issues, id) {
         Some(index) => {
           let issue = issues[index]
           let now = @env.now()
@@ -398,7 +444,7 @@ async fn cmd_update(
             Some(value) => value
             None => issue.priority
           }
-          let updated = @tracker.Issue::{
+          let updated = Issue::{
             id: issue.id,
             title,
             description,
@@ -432,20 +478,20 @@ async fn cmd_update(
 
 ///|
 async fn cmd_delete(opts : GlobalOptions, id : String) -> Unit {
-  let store = @tracker.Store::new()
+  let store = Store::new()
   store.ensure_workspace()
-  let result = @tracker.with_lock(
+  let result = with_lock(
     store.lock_path(),
-    fn() {
+    () => {
       let issues = store.load_issues()
-      match @tracker.find_issue_index(issues, id) {
+      match find_issue_index(issues, id) {
         Some(index) => {
           ignore(issues.remove(index))
           let now = @env.now()
           for i, issue in issues {
             if issue.deps.any(dep => dep == id) {
-              let deps = @tracker.remove_dep_value(issue.deps, id)
-              let updated = @tracker.Issue::{
+              let deps = remove_dep_value(issue.deps, id)
+              let updated = Issue::{
                 id: issue.id,
                 title: issue.title,
                 description: issue.description,
@@ -489,21 +535,21 @@ async fn cmd_dep_add(
     @stdio.stderr.write("error: dependency cannot be self\n")
     return
   }
-  let store = @tracker.Store::new()
+  let store = Store::new()
   store.ensure_workspace()
-  let result = @tracker.with_lock(
+  let result = with_lock(
     store.lock_path(),
-    fn() {
+    () => {
       let issues = store.load_issues()
-      let child_index = @tracker.find_issue_index(issues, child)
-      let parent_index = @tracker.find_issue_index(issues, parent)
+      let child_index = find_issue_index(issues, child)
+      let parent_index = find_issue_index(issues, parent)
       guard child_index is Some(child_index) else {
         return Err("child issue not found")
       }
       guard parent_index is Some(_) else {
         return Err("parent issue not found")
       }
-      if @tracker.would_create_cycle(issues, child, parent) {
+      if would_create_cycle(issues, child, parent) {
         return Err("dependency would create cycle")
       }
       let issue = issues[child_index]
@@ -513,7 +559,7 @@ async fn cmd_dep_add(
       let deps = issue.deps.copy()
       deps.push(parent)
       let now = @env.now()
-      let updated = @tracker.Issue::{
+      let updated = Issue::{
         id: issue.id,
         title: issue.title,
         description: issue.description,
@@ -552,13 +598,13 @@ async fn cmd_dep_remove(
     @stdio.stderr.write("error: dependency cannot be self\n")
     return
   }
-  let store = @tracker.Store::new()
+  let store = Store::new()
   store.ensure_workspace()
-  let result = @tracker.with_lock(
+  let result = with_lock(
     store.lock_path(),
-    fn() {
+    () => {
       let issues = store.load_issues()
-      let child_index = @tracker.find_issue_index(issues, child)
+      let child_index = find_issue_index(issues, child)
       guard child_index is Some(child_index) else {
         return Err("child issue not found")
       }
@@ -566,9 +612,9 @@ async fn cmd_dep_remove(
       if !issue.deps.any(dep => dep == parent) {
         return Err("dependency not present")
       }
-      let deps = @tracker.remove_dep_value(issue.deps, parent)
+      let deps = remove_dep_value(issue.deps, parent)
       let now = @env.now()
-      let updated = @tracker.Issue::{
+      let updated = Issue::{
         id: issue.id,
         title: issue.title,
         description: issue.description,
@@ -600,7 +646,7 @@ async fn cmd_dep_remove(
 ///|
 async fn print_usage() -> Unit {
   @stdio.stdout.write("Usage:\n")
-  @stdio.stdout.write("  moonbead <command> [flags]\n\n")
+  @stdio.stdout.write("  moonissues <command> [flags]\n\n")
   @stdio.stdout.write("Available Commands:\n")
   @stdio.stdout.write("  init        Initialize .beads + AGENTS.md\n")
   @stdio.stdout.write("  onboard     Print AGENTS.md snippet\n")
@@ -615,6 +661,8 @@ async fn print_usage() -> Unit {
   @stdio.stdout.write("  status <id> <status>  Set status\n")
   @stdio.stdout.write("  dep add <child> <parent>   Add dependency\n")
   @stdio.stdout.write("  dep remove <child> <parent>  Remove dependency\n\n")
+  @stdio.stdout.write("Tips:\n")
+  @stdio.stdout.write("  moonissues <command> --help  Show command help\n\n")
   @stdio.stdout.write("Flags:\n")
   @stdio.stdout.write("  -h, --help             Show help\n")
   @stdio.stdout.write(
@@ -635,7 +683,150 @@ async fn print_usage() -> Unit {
 }
 
 ///|
-fn format_issue_line(issue : @tracker.Issue, color : Bool) -> String {
+async fn print_init_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues init [flags]\n\n")
+  @stdio.stdout.write("Description:\n")
+  @stdio.stdout.write("  Initialize .beads and AGENTS.md\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json     Output JSON\n")
+  @stdio.stdout.write("  --force    Remove existing lock\n")
+}
+
+///|
+async fn print_onboard_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues onboard\n\n")
+  @stdio.stdout.write("Description:\n")
+  @stdio.stdout.write("  Print AGENTS.md snippet\n")
+}
+
+///|
+async fn print_prime_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues prime\n\n")
+  @stdio.stdout.write("Description:\n")
+  @stdio.stdout.write("  Print agent workflow prompt\n")
+}
+
+///|
+async fn print_create_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues create <title...> [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  -p, --priority <n>     Priority (default 2)\n")
+  @stdio.stdout.write("  --description <text>   Description\n")
+  @stdio.stdout.write("  --notes <text>         Notes\n")
+  @stdio.stdout.write("  --json                 Output JSON\n")
+  @stdio.stdout.write("  --force                Remove existing lock\n")
+}
+
+///|
+async fn print_list_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues list [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --status <status>      Filter by status\n")
+  @stdio.stdout.write("  -p, --priority <n>     Filter by priority\n")
+  @stdio.stdout.write("  --ready                Ready only\n")
+  @stdio.stdout.write("  --all                  Include closed\n")
+  @stdio.stdout.write("  --search <text>        Search title/notes\n")
+  @stdio.stdout.write("  --sort priority        Sort by priority\n")
+  @stdio.stdout.write("  --json                 Output JSONL\n")
+  @stdio.stdout.write("  --no-color             Disable ANSI colors\n")
+}
+
+///|
+async fn print_ready_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues ready [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json       Output JSONL\n")
+  @stdio.stdout.write("  --no-color   Disable ANSI colors\n")
+}
+
+///|
+async fn print_show_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues show <id> [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json       Output JSON\n")
+  @stdio.stdout.write("  --no-color   Disable ANSI colors\n")
+}
+
+///|
+async fn print_update_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues update <id> [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --title <text>         Update title\n")
+  @stdio.stdout.write("  --description <text>   Update description\n")
+  @stdio.stdout.write("  --notes <text>         Replace notes\n")
+  @stdio.stdout.write("  --append-notes <text>  Append notes\n")
+  @stdio.stdout.write("  -p, --priority <n>     Update priority\n")
+  @stdio.stdout.write("  --json                 Output JSON\n")
+  @stdio.stdout.write("  --force                Remove existing lock\n")
+}
+
+///|
+async fn print_delete_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues delete <id> [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json     Output JSON\n")
+  @stdio.stdout.write("  --force    Remove existing lock\n")
+}
+
+///|
+async fn print_close_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues close <id> [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json     Output JSON\n")
+  @stdio.stdout.write("  --force    Remove existing lock\n")
+}
+
+///|
+async fn print_status_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues status <id> <status> [flags]\n\n")
+  @stdio.stdout.write("Status:\n")
+  @stdio.stdout.write("  open | in_progress | blocked | closed\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json     Output JSON\n")
+  @stdio.stdout.write("  --force    Remove existing lock\n")
+}
+
+///|
+async fn print_dep_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues dep add <child> <parent>\n")
+  @stdio.stdout.write("  moonissues dep remove <child> <parent>\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json     Output JSON\n")
+  @stdio.stdout.write("  --force    Remove existing lock\n")
+}
+
+///|
+async fn print_dep_add_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues dep add <child> <parent> [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json     Output JSON\n")
+  @stdio.stdout.write("  --force    Remove existing lock\n")
+}
+
+///|
+async fn print_dep_remove_usage() -> Unit {
+  @stdio.stdout.write("Usage:\n")
+  @stdio.stdout.write("  moonissues dep remove <child> <parent> [flags]\n\n")
+  @stdio.stdout.write("Flags:\n")
+  @stdio.stdout.write("  --json     Output JSON\n")
+  @stdio.stdout.write("  --force    Remove existing lock\n")
+}
+
+///|
+fn format_issue_line(issue : Issue, color : Bool) -> String {
   let id = format_id(issue.id, color)
   let status = format_status(issue.status, color)
   let priority = format_priority_label(issue.priority, color)
@@ -671,13 +862,13 @@ fn colorize(value : String, color : String, enabled : Bool) -> String {
 
 ///|
 fn status_color(status : String) -> String {
-  if status == @tracker.status_open {
+  if status == status_open {
     ansi_green
-  } else if status == @tracker.status_in_progress {
+  } else if status == status_in_progress {
     ansi_yellow
-  } else if status == @tracker.status_blocked {
+  } else if status == status_blocked {
     ansi_red
-  } else if status == @tracker.status_closed {
+  } else if status == status_closed {
     ansi_gray
   } else {
     ansi_cyan
@@ -720,7 +911,7 @@ fn format_id(id : String, enabled : Bool) -> String {
 }
 
 ///|
-async fn write_issue_json(issue : @tracker.Issue) -> Unit {
+async fn write_issue_json(issue : Issue) -> Unit {
   @stdio.stdout.write("\{issue.to_json().stringify()}\n")
 }
 
@@ -783,7 +974,7 @@ fn parse_list_args(args : ArrayView[String]) -> Result[ListOptions, String] {
           return Err("missing value for --status")
         }
         let raw = args[i + 1]
-        match @tracker.normalize_status(raw) {
+        match normalize_status(raw) {
           Some(value) => status = Some(value)
           None => return Err("invalid status")
         }
@@ -950,7 +1141,7 @@ fn parse_priority(value : String) -> Int? {
 }
 
 ///|
-fn compare_priority_then_id(a : @tracker.Issue, b : @tracker.Issue) -> Int {
+fn compare_priority_then_id(a : Issue, b : Issue) -> Int {
   if a.priority < b.priority {
     -1
   } else if a.priority > b.priority {
@@ -958,6 +1149,21 @@ fn compare_priority_then_id(a : @tracker.Issue, b : @tracker.Issue) -> Int {
   } else if a.id < b.id {
     -1
   } else if a.id > b.id {
+    1
+  } else {
+    0
+  }
+}
+
+///|
+fn compare_created_desc(a : Issue, b : Issue) -> Int {
+  if a.created_at > b.created_at {
+    -1
+  } else if a.created_at < b.created_at {
+    1
+  } else if a.id > b.id {
+    -1
+  } else if a.id < b.id {
     1
   } else {
     0

@@ -1,13 +1,13 @@
 ///|
 fn make_issue(
   id : String,
-  status? : String = @moonbead.status_open,
+  status? : String = @moonissues.status_open,
   deps? : Array[String] = [],
   priority? : Int = 2,
   description? : String = "",
-) -> @moonbead.Issue {
+) -> @moonissues.Issue {
   let now : UInt64 = 0
-  @moonbead.Issue::{
+  @moonissues.Issue::{
     id,
     title: id,
     description,
@@ -22,61 +22,68 @@ fn make_issue(
 
 ///|
 test "normalize status variants" {
-  assert_eq(@moonbead.normalize_status("OPEN"), Some(@moonbead.status_open))
+  assert_eq(@moonissues.normalize_status("OPEN"), Some(@moonissues.status_open))
   assert_eq(
-    @moonbead.normalize_status("in-progress"),
-    Some(@moonbead.status_in_progress),
+    @moonissues.normalize_status("in-progress"),
+    Some(@moonissues.status_in_progress),
   )
-  assert_eq(@moonbead.normalize_status("done"), Some(@moonbead.status_closed))
-  assert_eq(@moonbead.normalize_status("wat"), None)
+  assert_eq(
+    @moonissues.normalize_status("done"),
+    Some(@moonissues.status_closed),
+  )
+  assert_eq(@moonissues.normalize_status("wat"), None)
 }
 
 ///|
 test "next issue id increments" {
-  let issues = [make_issue("mb-2"), make_issue("bd-9"), make_issue("oops")]
-  assert_eq(@moonbead.next_issue_id(issues), "mb-10")
+  let base = @moonissues.next_issue_id([], "title", "desc", 123)
+  assert_true(base.strip_prefix("mi-") is Some(_))
+  assert_eq(base.length(), 11)
+  let issues = [make_issue(base)]
+  let next = @moonissues.next_issue_id(issues, "title", "desc", 123)
+  assert_true(next != base)
 }
 
 ///|
 test "dependency cycle detection" {
   let issues = [
-    make_issue("mb-1", deps=["mb-2"]),
-    make_issue("mb-2", deps=["mb-3"]),
-    make_issue("mb-3"),
+    make_issue("mi-1", deps=["mi-2"]),
+    make_issue("mi-2", deps=["mi-3"]),
+    make_issue("mi-3"),
   ]
-  assert_true(@moonbead.would_create_cycle(issues, "mb-3", "mb-1"))
-  assert_true(!@moonbead.would_create_cycle(issues, "mb-1", "mb-3"))
+  assert_true(@moonissues.would_create_cycle(issues, "mi-3", "mi-1"))
+  assert_true(!@moonissues.would_create_cycle(issues, "mi-1", "mi-3"))
 }
 
 ///|
 test "remove dep value" {
-  let deps = @moonbead.remove_dep_value(["mb-2", "mb-3", "mb-2"], "mb-2")
-  assert_eq(deps, ["mb-3"])
+  let deps = @moonissues.remove_dep_value(["mi-2", "mi-3", "mi-2"], "mi-2")
+  assert_eq(deps, ["mi-3"])
 }
 
 ///|
 test "ready requires closed deps" {
-  let issues = [make_issue("mb-1"), make_issue("mb-2", deps=["mb-1"])]
-  let status_map = @moonbead.build_status_map(issues)
-  assert_true(!@moonbead.is_ready(issues[1], status_map))
+  let issues = [make_issue("mi-1"), make_issue("mi-2", deps=["mi-1"])]
+  let status_map = @moonissues.build_status_map(issues)
+  assert_true(!@moonissues.is_ready(issues[1], status_map))
   let done = [
-    make_issue("mb-1", status=@moonbead.status_closed),
-    make_issue("mb-2", deps=["mb-1"]),
+    make_issue("mi-1", status=@moonissues.status_closed),
+    make_issue("mi-2", deps=["mi-1"]),
   ]
-  let done_map = @moonbead.build_status_map(done)
-  assert_true(@moonbead.is_ready(done[1], done_map))
+  let done_map = @moonissues.build_status_map(done)
+  assert_true(@moonissues.is_ready(done[1], done_map))
   let in_progress = [
-    make_issue("mb-1", status=@moonbead.status_closed),
-    make_issue("mb-2", status=@moonbead.status_in_progress, deps=["mb-1"]),
+    make_issue("mi-1", status=@moonissues.status_closed),
+    make_issue("mi-2", status=@moonissues.status_in_progress, deps=["mi-1"]),
   ]
-  let in_progress_map = @moonbead.build_status_map(in_progress)
-  assert_true(@moonbead.is_ready(in_progress[1], in_progress_map))
+  let in_progress_map = @moonissues.build_status_map(in_progress)
+  assert_true(@moonissues.is_ready(in_progress[1], in_progress_map))
 }
 
 ///|
 test "issue description roundtrip" {
-  let issue = make_issue("mb-10", description="summary")
+  let issue = make_issue("mi-10", description="summary")
   let json = issue.to_json()
-  let decoded : @moonbead.Issue = @json.from_json(json)
+  let decoded : @moonissues.Issue = @json.from_json(json)
   assert_eq(decoded.description, "summary")
 }
